@@ -19,7 +19,7 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "Gjykata Artificiale",
+  title: "Deputeti AI",
   description: "AI assistant for Albanian and EU law",
   icons: {
     icon: [
