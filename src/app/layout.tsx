@@ -20,7 +20,7 @@ const spaceGrotesk = Space_Grotesk({
 
 export const metadata: Metadata = {
   title: "Gjykata Artificiale",
-  description: "Asistent IA per ligjet e Shqiperise dhe EU-se",
+  description: "AI assistant for Albanian and EU law",
   icons: {
     icon: [
       { url: '/albania_favicon.png', type: 'image/png' },

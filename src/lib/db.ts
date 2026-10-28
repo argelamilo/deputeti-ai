@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import Database from "better-sqlite3";
+import postgres from "postgres";
 
 export type DbUser = {
   id: string;
@@ -19,38 +19,101 @@ export type DbSession = {
   created_at: string;
 };
 
+export type DbArg = string | number | boolean | null;
+export type DbStatement = { sql: string; args?: DbArg[] };
+
+type Sql = postgres.Sql;
+
 declare global {
   // eslint-disable-next-line no-var
-  var __deputetiDb: Database.Database | undefined;
+  var __deputetiDb: Sql | undefined;
+  // eslint-disable-next-line no-var
+  var __deputetiDbReady: Promise<void> | undefined;
 }
 
-function resolveDbPath(): string {
-  const configured = process.env.DATABASE_PATH?.trim();
-  if (configured) {
-    return path.isAbsolute(configured) ? configured : path.resolve(process.cwd(), configured);
-  }
-  return path.resolve(process.cwd(), "data", "deputeti.db");
-}
-
-export function getDb(): Database.Database {
-  if (globalThis.__deputetiDb) {
-    return globalThis.__deputetiDb;
-  }
-
-  const dbPath = resolveDbPath();
-  const dir = path.dirname(dbPath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-
-  if (!fs.existsSync(dbPath)) {
+// Supabase Postgres connection string. DATABASE_URL is preferred; POSTGRES_URL is
+// what the Vercel ↔ Supabase integration sets automatically.
+function resolveDbUrl(): URL {
+  const raw = (process.env.DATABASE_URL || process.env.POSTGRES_URL || "").trim();
+  if (!raw) {
     throw new Error(
-      `Database not found at ${dbPath}. Run \`npm run db:init\` to create it from db/schema.sql.`
+      "Database is not configured. Set DATABASE_URL to your Supabase connection string."
     );
   }
+  const url = new URL(raw);
+  // Drop query params (e.g. sslmode, supa=...) that the driver would otherwise
+  // forward to the server as unknown settings; SSL is configured below.
+  url.search = "";
+  return url;
+}
 
-  const db = new Database(dbPath);
-  db.pragma("foreign_keys = ON");
-  globalThis.__deputetiDb = db;
-  return db;
+function getClient(): Sql {
+  if (!globalThis.__deputetiDb) {
+    const url = resolveDbUrl();
+    const isLocal = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+    globalThis.__deputetiDb = postgres(url.toString(), {
+      ssl: isLocal ? false : "require",
+      // Required for Supabase's transaction pooler (port 6543), which Vercel should use.
+      prepare: false,
+      max: 1,
+      idle_timeout: 20,
+    });
+  }
+  return globalThis.__deputetiDb;
+}
+
+// Applies db/schema.sql once per server instance. Every statement is idempotent,
+// and the advisory lock stops concurrent cold starts from racing each other.
+async function ensureSchema(sql: Sql): Promise<void> {
+  const schemaPath = path.resolve(process.cwd(), "db", "schema.sql");
+  const schema = fs.readFileSync(schemaPath, "utf8");
+  await sql.begin(async (tx) => {
+    await tx.unsafe("SELECT pg_advisory_xact_lock(724001)");
+    await tx.unsafe(schema);
+  });
+}
+
+export async function getDb(): Promise<Sql> {
+  const sql = getClient();
+  if (!globalThis.__deputetiDbReady) {
+    globalThis.__deputetiDbReady = ensureSchema(sql).catch((error) => {
+      globalThis.__deputetiDbReady = undefined;
+      throw error;
+    });
+  }
+  await globalThis.__deputetiDbReady;
+  return sql;
+}
+
+// Queries are written with `?` placeholders; Postgres expects $1, $2, ...
+function toPgPlaceholders(query: string): string {
+  let index = 0;
+  return query.replace(/\?/g, () => `$${++index}`);
+}
+
+export async function dbGet<T>(query: string, args: DbArg[] = []): Promise<T | undefined> {
+  const sql = await getDb();
+  const rows = await sql.unsafe(toPgPlaceholders(query), args);
+  return rows[0] as T | undefined;
+}
+
+export async function dbAll<T>(query: string, args: DbArg[] = []): Promise<T[]> {
+  const sql = await getDb();
+  const rows = await sql.unsafe(toPgPlaceholders(query), args);
+  return rows as unknown as T[];
+}
+
+export async function dbRun(query: string, args: DbArg[] = []): Promise<number> {
+  const sql = await getDb();
+  const result = await sql.unsafe(toPgPlaceholders(query), args);
+  return result.count;
+}
+
+export async function dbTransaction(statements: DbStatement[]): Promise<void> {
+  const sql = await getDb();
+  await sql.begin(async (tx) => {
+    for (const statement of statements) {
+      await tx.unsafe(toPgPlaceholders(statement.sql), statement.args ?? []);
+    }
+  });
 }

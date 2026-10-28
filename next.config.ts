@@ -12,7 +12,18 @@ const nextConfig: NextConfig = {
   // Performance optimizations
   compress: true,
   poweredByHeader: false,
-  serverExternalPackages: ["better-sqlite3"],
+  serverExternalPackages: ["postgres"],
+  // db/schema.sql is read at runtime to create tables on first use
+  outputFileTracingIncludes: {
+    "/api/**/*": ["./db/schema.sql"],
+  },
+  // Library, Explorer and Compare depend on the eu-law backend, which is not used anymore.
+  async redirects() {
+    return ["/library", "/explorer", "/compare"].flatMap((path) => [
+      { source: path, destination: "/chat", permanent: false },
+      { source: `${path}/:rest*`, destination: "/chat", permanent: false },
+    ]);
+  },
 };
 
 export default withBundleAnalyzer(nextConfig);

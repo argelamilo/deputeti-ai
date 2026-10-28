@@ -1,6 +1,8 @@
 "use client";
 
 import { Box, Button, Paper, Typography } from "@mui/material";
+import { useLanguage } from "@/contexts/LanguageContext";
+import type { Language } from "@/lib/i18n";
 
 interface PromptGroup {
   title: string;
@@ -12,10 +14,10 @@ interface PromptGroup {
 
 interface PromptSuggestionGridProps {
   onPromptClick: (prompt: string) => void;
-  selectedLawLabel?: string;
+  selectedLaw?: "eu_law" | "albanian";
 }
 
-const EU_PROMPT_GROUPS: PromptGroup[] = [
+const EU_PROMPT_GROUPS_SQ: PromptGroup[] = [
   {
     title: "GJETJE FAKTESH",
     prompts: [
@@ -82,7 +84,7 @@ const EU_PROMPT_GROUPS: PromptGroup[] = [
   },
 ];
 
-const ALBANIAN_PROMPT_GROUPS: PromptGroup[] = [
+const ALBANIAN_PROMPT_GROUPS_SQ: PromptGroup[] = [
   {
     title: "MBROJTJA E TE DHENAVE",
     prompts: [
@@ -122,18 +124,124 @@ const ALBANIAN_PROMPT_GROUPS: PromptGroup[] = [
   },
 ];
 
-export function PromptSuggestionGrid({ onPromptClick, selectedLawLabel = "Ligji i BE-se" }: PromptSuggestionGridProps) {
-  const isAlbanianLaw = selectedLawLabel === "Ligji Shqiptar";
-  const promptGroups = isAlbanianLaw ? ALBANIAN_PROMPT_GROUPS : EU_PROMPT_GROUPS;
-  const headingText =
-    isAlbanianLaw
-      ? "Pyet mbi Legjislacionin Shqiptar"
-      : selectedLawLabel === "Ligji i BE-se"
-        ? "Pyet per Ligjin e BE-se"
-        : `Pyet per ${selectedLawLabel}`;
-  const subheadingText = isAlbanianLaw
-    ? "Merr pergjigje ne shqip me referenca nga ligji i BE-se dhe konteksti i harmonizimit"
-    : "Merr pergjigje me referenca te traktateve dhe neneve specifike";
+const EU_PROMPT_GROUPS_EN: PromptGroup[] = [
+  {
+    title: "FACT LOOKUP",
+    prompts: [
+      { label: "Maximum GDPR fine", fullQuestion: "What is the maximum fine under the GDPR for serious infringements?" },
+      { label: "GDPR legal bases", fullQuestion: "What are the legal bases for processing personal data under Article 6 of the GDPR?" },
+      { label: "AI Act timeline", fullQuestion: "When does the EU AI Act become applicable and what are the key compliance deadlines?" },
+      {
+        label: "Infringement procedure",
+        fullQuestion: "How does the EU infringement procedure against member states work, step by step?",
+      },
+    ],
+  },
+  {
+    title: "CROSS-DOCUMENT REASONING",
+    prompts: [
+      { label: "NIS2 and GDPR", fullQuestion: "How do the NIS2 obligations interact with the GDPR requirements for incident response?" },
+      {
+        label: "AI Act and medical devices",
+        fullQuestion: "How does the AI Act apply to AI systems used in medical devices under EU law?",
+      },
+      {
+        label: "DSA and e-Commerce",
+        fullQuestion: "What are the main differences between the Digital Services Act and the e-Commerce Directive?",
+      },
+    ],
+  },
+  {
+    title: "TEMPORAL ACCURACY",
+    prompts: [
+      {
+        label: "GDPR vs Directive 95/46",
+        fullQuestion: "What changed when the GDPR replaced Directive 95/46/EC, and which obligations became stricter?",
+      },
+      {
+        label: "AI Act entry into force",
+        fullQuestion: "On what date did the AI Act enter into force, and from when do its main provisions apply?",
+      },
+      {
+        label: "AI Act transitional provisions",
+        fullQuestion: "What are the transitional provisions of the AI Act and how do they affect existing AI systems?",
+      },
+    ],
+  },
+  {
+    title: "HIERARCHICAL REASONING",
+    prompts: [
+      { label: "Data localisation", fullQuestion: "When are data localisation requirements allowed or restricted under EU law?" },
+      {
+        label: "Regulation vs Directive",
+        fullQuestion: "What is the practical legal difference between an EU Regulation and an EU Directive?",
+      },
+    ],
+  },
+  {
+    title: "EDGE CASES AND EXCEPTIONS",
+    prompts: [
+      { label: "GDPR outside the EU", fullQuestion: "When does the GDPR apply to companies established outside the European Union?" },
+      { label: "High-risk AI", fullQuestion: "How does the AI Act define high-risk AI systems and which obligations apply?" },
+      {
+        label: "Automated decisions",
+        fullQuestion: "What rights do individuals have under the GDPR regarding automated decision-making and profiling?",
+      },
+    ],
+  },
+];
+
+const ALBANIAN_PROMPT_GROUPS_EN: PromptGroup[] = [
+  {
+    title: "DATA PROTECTION",
+    prompts: [
+      { label: "GDPR legal bases", fullQuestion: "What are the legal bases for processing personal data under the GDPR?" },
+      { label: "Data subject rights", fullQuestion: "What are the main rights of the data subject under the GDPR?" },
+      { label: "Controller obligations", fullQuestion: "What are the main obligations of the controller under the GDPR?" },
+    ],
+  },
+  {
+    title: "ARTIFICIAL INTELLIGENCE",
+    prompts: [
+      { label: "Purpose of the AI Act", fullQuestion: "What is the purpose of the EU Artificial Intelligence Act (AI Act)?" },
+      { label: "High-risk systems", fullQuestion: "How does the AI Act define high-risk systems and which obligations apply?" },
+      { label: "Prohibited practices", fullQuestion: "Which AI practices are prohibited under Article 5 of the AI Act?" },
+    ],
+  },
+  {
+    title: "DIGITAL SERVICES",
+    prompts: [
+      { label: "DSA obligations", fullQuestion: "What are the main obligations of online platforms under the DSA?" },
+      { label: "DSA and e-Commerce", fullQuestion: "What are the main differences between the DSA and the e-Commerce Directive?" },
+    ],
+  },
+  {
+    title: "CYBERSECURITY",
+    prompts: [
+      { label: "NIS2 in practice", fullQuestion: "What are the main obligations under NIS2 for cybersecurity risk management?" },
+      { label: "Incident reporting", fullQuestion: "What are the incident reporting deadlines under NIS2?" },
+    ],
+  },
+  {
+    title: "LEGAL HARMONISATION",
+    prompts: [
+      { label: "GDPR in the Albanian context", fullQuestion: "How do the GDPR requirements relate to the data protection framework in Albania?" },
+      { label: "AI Act and the Albanian market", fullQuestion: "How could the AI Act affect Albanian companies that offer services in the EU market?" },
+    ],
+  },
+];
+
+const PROMPT_GROUPS: Record<Language, Record<"eu_law" | "albanian", PromptGroup[]>> = {
+  en: { eu_law: EU_PROMPT_GROUPS_EN, albanian: ALBANIAN_PROMPT_GROUPS_EN },
+  sq: { eu_law: EU_PROMPT_GROUPS_SQ, albanian: ALBANIAN_PROMPT_GROUPS_SQ },
+};
+
+export function PromptSuggestionGrid({ onPromptClick, selectedLaw = "eu_law" }: PromptSuggestionGridProps) {
+  const { lang, t } = useLanguage();
+  const isAlbanianLaw = selectedLaw === "albanian";
+  const promptGroups = PROMPT_GROUPS[lang][selectedLaw];
+  const headingText = isAlbanianLaw ? t("promptHeadingAl") : t("promptHeadingEu");
+  const subheadingText = isAlbanianLaw ? t("promptSubheadingAl") : t("promptSubheadingEu");
 
   return (
     <Box sx={{ width: "100%", maxWidth: 980, mx: "auto", pt: { xs: 2, sm: 4 } }}>

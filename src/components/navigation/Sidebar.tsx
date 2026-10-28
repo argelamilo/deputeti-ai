@@ -4,9 +4,6 @@
 import Drawer from "@mui/material/Drawer";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
-import SearchOutlinedIcon from "@mui/icons-material/SearchOutlined";
-import ExploreOutlinedIcon from "@mui/icons-material/ExploreOutlined";
-import { usePathname, useRouter } from "next/navigation";
 import type { NavigationItem } from "@/types/dashboard";
 import { SidebarLogo } from "./SidebarLogo";
 import { SidebarActions } from "./SidebarActions";
@@ -36,13 +33,7 @@ export function Sidebar({
   void _items;
   void _selectedItem;
   void _onItemSelect;
-  const router = useRouter();
-  const pathname = usePathname();
 
-  const footerLinks = [
-    { id: "library", label: "Biblioteka", path: "/library", icon: <SearchOutlinedIcon sx={{ fontSize: 18 }} /> },
-    { id: "explorer", label: "Eksploro", path: "/explorer", icon: <ExploreOutlinedIcon sx={{ fontSize: 18 }} /> },
-  ];
 
   return (
     <Drawer
@@ -86,41 +77,6 @@ export function Sidebar({
       >
         {/* Sidebar sections */}
         <SidebarActions />
-      </Box>
-
-      <Box sx={{ px: 2, py: 1.5, borderTop: "1px solid hsl(var(--border-soft))" }}>
-        <Box sx={{ display: "grid", gap: 0.5 }}>
-          {footerLinks.map((item) => (
-            <Box
-              key={item.id}
-              component="button"
-              type="button"
-              onClick={() => item.path && router.push(item.path)}
-              sx={{
-                width: "100%",
-                display: "flex",
-                alignItems: "center",
-                gap: 1,
-                px: 1,
-                py: 0.8,
-                borderRadius: 1,
-                color: pathname === item.path ? "hsl(var(--text-primary))" : "hsl(var(--text-primary))",
-                border: "none",
-                background: pathname === item.path ? "hsl(var(--surface-muted))" : "transparent",
-                textAlign: "left",
-                transition: "background-color 160ms ease",
-                "&:hover": { backgroundColor: "hsl(var(--surface-muted))" },
-                "&:focus-visible": {
-                  outline: "2px solid hsl(var(--ring))",
-                  outlineOffset: "2px",
-                },
-              }}
-            >
-              {item.icon}
-              <Typography sx={{ fontSize: "0.88rem" }}>{item.label}</Typography>
-            </Box>
-          ))}
-        </Box>
       </Box>
 
       <Box

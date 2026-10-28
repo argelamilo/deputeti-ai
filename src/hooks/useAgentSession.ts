@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import { chatClient, ChatMessage, ChatResponse } from "@/lib/api/client";
 import type { ChatSource } from "@/lib/api/client";
 import { devError, devLog, devWarn } from "@/lib/utils/logger";
+import { translate } from "@/lib/i18n";
 
 export interface AgentMessage {
   role: "user" | "assistant";
@@ -116,7 +117,7 @@ export function useAgentSession(sessionId: string | null = null) {
 
         const errorContent =
           response?.error ||
-          "Ndodhi nje gabim gjate perpunimit te kerkeses. Ju lutem provoni perseri.";
+          translate("errGeneric");
 
         const errorMsg: AgentMessage = {
           role: "assistant",
@@ -124,7 +125,7 @@ export function useAgentSession(sessionId: string | null = null) {
           timestamp: new Date().toISOString(),
         };
         setMessages((prev) => [...prev, errorMsg]);
-        setError(response?.error || "Deshtoi marrja e pergjigjes nga asistenti");
+        setError(response?.error || translate("errAssistant"));
         setLastFailedUserMessage(userMessage);
 
         const historyWithError: ChatMessage[] = [
@@ -144,7 +145,7 @@ export function useAgentSession(sessionId: string | null = null) {
 
         const errorMsg: AgentMessage = {
           role: "assistant",
-          content: "Kerkesa deshtoi. Ju lutem provoni perseri.",
+          content: translate("errRequestFailed"),
           timestamp: new Date().toISOString(),
         };
         setMessages((prev) => [...prev, errorMsg]);

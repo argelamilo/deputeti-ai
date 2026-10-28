@@ -69,7 +69,7 @@ export async function GET(
       return NextResponse.json({ detail: "Invalid session id." }, { status: 400 });
     }
 
-    const conversation = getConversationForUser(user.id, sessionId);
+    const conversation = await getConversationForUser(user.id, sessionId);
     if (!conversation) {
       return NextResponse.json({ detail: "Conversation not found." }, { status: 404 });
     }
@@ -117,7 +117,7 @@ export async function PUT(
           ? null
           : undefined;
 
-    const conversation = upsertConversationForUser({
+    const conversation = await upsertConversationForUser({
       userId: user.id,
       sessionId,
       messages,
@@ -150,7 +150,7 @@ export async function DELETE(
       return NextResponse.json({ detail: "Invalid session id." }, { status: 400 });
     }
 
-    deleteConversationForUser(user.id, sessionId);
+    await deleteConversationForUser(user.id, sessionId);
     return NextResponse.json({ success: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to delete conversation.";

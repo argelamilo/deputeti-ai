@@ -9,6 +9,11 @@ import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Typography from "@mui/material/Typography";
 import { useEffect, useState } from "react";
+import ToggleButton from "@mui/material/ToggleButton";
+import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { LANGUAGES } from "@/lib/i18n/translations";
+import type { TranslationKey } from "@/lib/i18n";
 
 interface PageHeaderProps {
   breadcrumbItems: Array<{
@@ -24,20 +29,21 @@ interface PageHeaderProps {
   onLogout?: () => void;
 }
 
-const LAW_OPTIONS = [
-  { id: "eu_law", label: "Ligji i BE-se" },
-  { id: "albanian", label: "Ligji Shqiptar" },
-] as const;
+const LAW_OPTIONS: ReadonlyArray<{ id: "eu_law" | "albanian"; labelKey: TranslationKey }> = [
+  { id: "eu_law", labelKey: "euLaw" },
+  { id: "albanian", labelKey: "albanianLaw" },
+];
 
 const LAW_STORAGE_KEY = "selected_law";
 
 export function PageHeader({
   breadcrumbItems,
 }: PageHeaderProps) {
+  const { lang, setLang, t } = useLanguage();
   const [selectedLaw, setSelectedLaw] = useState<(typeof LAW_OPTIONS)[number]["id"]>("eu_law");
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
 
-  const selectedLawLabel = LAW_OPTIONS.find((option) => option.id === selectedLaw)?.label || "Ligji i BE-se";
+  const selectedLawLabel = t(LAW_OPTIONS.find((option) => option.id === selectedLaw)?.labelKey ?? "euLaw");
 
   useEffect(() => {
     const storedLaw = typeof window !== "undefined" ? window.localStorage.getItem(LAW_STORAGE_KEY) : null;
@@ -61,7 +67,39 @@ export function PageHeader({
         <Breadcrumb items={breadcrumbItems} />
       </Box>
 
-      <Box sx={{ display: { xs: "none", md: "flex" }, alignItems: "center" }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+        <ToggleButtonGroup
+          exclusive
+          size="small"
+          value={lang}
+          aria-label={t("language")}
+          onChange={(_, next) => {
+            if (next) setLang(next);
+          }}
+          sx={{
+            "& .MuiToggleButton-root": {
+              px: 1.1,
+              py: 0.45,
+              fontSize: "0.8rem",
+              fontWeight: 600,
+              textTransform: "none",
+              color: "hsl(var(--text-muted))",
+              border: "1px solid hsl(var(--border-soft))",
+              "&.Mui-selected": {
+                bgcolor: "hsl(var(--primary))",
+                color: "hsl(var(--primary-foreground))",
+                "&:hover": { bgcolor: "hsl(var(--primary))" },
+              },
+            },
+          }}
+        >
+          {LANGUAGES.map((option) => (
+            <ToggleButton key={option.id} value={option.id} title={option.label} aria-label={option.label}>
+              {option.id.toUpperCase()}
+            </ToggleButton>
+          ))}
+        </ToggleButtonGroup>
+        <Box sx={{ display: { xs: "none", md: "flex" }, alignItems: "center" }}>
         <Button
           onClick={(event) => setMenuAnchor(event.currentTarget)}
           endIcon={<KeyboardArrowDownIcon sx={{ fontSize: 18 }} />}
@@ -107,10 +145,11 @@ export function PageHeader({
               sx={{ minHeight: 38, gap: 1 }}
             >
               {selectedLaw === option.id ? <CheckIcon sx={{ fontSize: 18 }} /> : <Box sx={{ width: 18, height: 18 }} />}
-              <Typography sx={{ fontSize: "0.95rem", color: "hsl(var(--text-primary))" }}>{option.label}</Typography>
+              <Typography sx={{ fontSize: "0.95rem", color: "hsl(var(--text-primary))" }}>{t(option.labelKey)}</Typography>
             </MenuItem>
           ))}
         </Menu>
+        </Box>
       </Box>
     </Box>
   );

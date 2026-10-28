@@ -9,7 +9,7 @@ import {
   validateEmail,
   validatePassword,
 } from "@/lib/auth/validation";
-import { DbUser, getDb } from "@/lib/db";
+import { DbUser, dbGet } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,13 +36,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ detail: password.detail }, { status: password.status });
     }
 
-    const db = getDb();
-    const user = db
-      .prepare(
-        `SELECT id, email, password_hash, full_name, created_at, updated_at
-         FROM users WHERE email = ? LIMIT 1`
-      )
-      .get(email) as DbUser | undefined;
+    const user = await dbGet<DbUser>(
+      `SELECT id, email, password_hash, full_name, created_at, updated_at
+       FROM users WHERE email = ? LIMIT 1`,
+      [email]
+    );
 
     const invalid = NextResponse.json({ detail: "Invalid email or password." }, { status: 401 });
     if (!user) {
@@ -67,9 +65,7 @@ export async function POST(request: NextRequest) {
     return response;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Login failed.";
-    if (message.includes("Database not found")) {
-      return NextResponse.json({ detail: message }, { status: 503 });
-    }
+    console.error("Login failed:", message);
     return NextResponse.json({ detail: "Login failed." }, { status: 500 });
   }
 }

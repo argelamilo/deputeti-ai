@@ -1,16 +1,14 @@
+import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/auth/session";
-import { getUpstreamAuthHeader } from "@/lib/auth/upstream";
-import {
-  getConversationForUser,
-  getUpstreamConversationId,
-  upsertConversationForUser,
-} from "@/lib/conversations";
+import { getConversationForUser, upsertConversationForUser } from "@/lib/conversations";
+import { answerLegalQuestion, type LegalAnswer } from "@/lib/legalAssistant";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// Web search + answer can take a while; allow up to 2 minutes on Vercel.
+export const maxDuration = 120;
 
-const REQUEST_TIMEOUT_MS = 45000;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_REQUESTS = 25;
 const MAX_PROMPT_LENGTH = 6000;
@@ -24,30 +22,6 @@ type ChatProxyRequest = {
   conversation_id?: string;
   session_id?: string;
 };
-
-type UpstreamConversationCreateResponse = {
-  id?: string;
-};
-
-type UpstreamConversationMessageResponse = {
-  tracking_id?: string | number;
-  assistant_message?: {
-    id?: string;
-    role?: string;
-    content?: string;
-    sources?: unknown;
-    metadata?: unknown;
-    created_at?: string;
-  };
-};
-
-function getBackendBaseUrl(): string {
-  let baseUrl = process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_URL || "https://eu-law.deputeti.ai";
-  if (baseUrl.includes("#")) {
-    baseUrl = baseUrl.split("#")[0];
-  }
-  return baseUrl.replace(/\/$/, "");
-}
 
 function getClientIp(request: NextRequest): string {
   const forwardedFor = request.headers.get("x-forwarded-for");
@@ -91,29 +65,12 @@ function normalizeSource(input: unknown): "eu_law" | "albanian" {
   return ALLOWED_SOURCES.has(normalized) ? (normalized as "eu_law" | "albanian") : "eu_law";
 }
 
-function sanitizeConversationId(input: unknown): string | null {
-  if (typeof input !== "string") return null;
-  const normalized = input.trim();
-  if (!normalized) return null;
-  return normalized.slice(0, 120);
-}
-
 function sanitizeSessionId(input: unknown): string | null {
   if (typeof input !== "string") return null;
   const normalized = input.trim();
   if (!normalized || normalized.length > 120) return null;
   if (!/^[a-zA-Z0-9_-]+$/.test(normalized)) return null;
   return normalized;
-}
-
-async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-  try {
-    return await fetch(url, { ...init, signal: controller.signal });
-  } finally {
-    clearTimeout(timeoutId);
-  }
 }
 
 export async function POST(request: NextRequest) {
@@ -130,7 +87,6 @@ export async function POST(request: NextRequest) {
     const prompt = sanitizePrompt(body.prompt);
     const source = normalizeSource(body.source);
     const localSessionId = sanitizeSessionId(body.session_id);
-    let conversationId = sanitizeConversationId(body.conversation_id);
     if (!prompt) {
       return NextResponse.json({ detail: "Invalid request. Prompt is required." }, { status: 400 });
     }
@@ -140,166 +96,41 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ detail: "Authentication required." }, { status: 401 });
     }
 
-    if (!conversationId && localSessionId) {
-      conversationId = getUpstreamConversationId(sessionUser.id, localSessionId);
+    const existing = localSessionId ? await getConversationForUser(sessionUser.id, localSessionId) : null;
+    let priorMessages = existing?.messages ?? [];
+    const last = priorMessages[priorMessages.length - 1];
+    // Client may have already persisted the user turn optimistically.
+    if (last?.role === "user" && last.content === prompt) {
+      priorMessages = priorMessages.slice(0, -1);
     }
 
-    let authHeader: string;
+    let answer: LegalAnswer;
     try {
-      authHeader = await getUpstreamAuthHeader();
-    } catch {
-      return NextResponse.json({ detail: "Upstream authentication failed." }, { status: 502 });
-    }
-
-    const backendBase = getBackendBaseUrl();
-    const createConversation = async () => {
-      const attempt = async () =>
-        fetchWithTimeout(`${backendBase}/api/v1/conversations`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: authHeader,
-          },
-          body: JSON.stringify({
-            title: "Bisede e re",
-            profile: "general",
-            data_source: source,
-          }),
-          cache: "no-store",
-        });
-
-      let createConversationResponse = await attempt();
-      if (createConversationResponse.status === 401) {
-        try {
-          authHeader = await getUpstreamAuthHeader(true);
-        } catch {
-          return {
-            id: null,
-            errorResponse: NextResponse.json(
-              { detail: "Upstream authentication failed." },
-              { status: 502 }
-            ),
-          };
-        }
-        createConversationResponse = await attempt();
+      answer = await answerLegalQuestion({ prompt, history: priorMessages, focus: source });
+    } catch (error) {
+      console.error("Chat request to Claude failed:", error);
+      if (error instanceof Anthropic.RateLimitError) {
+        return NextResponse.json({ detail: "The assistant is busy. Please try again shortly." }, { status: 429 });
       }
-
-      if (!createConversationResponse.ok) {
-        const createText = await createConversationResponse.text();
-        return {
-          id: null,
-          errorResponse: NextResponse.json(
-            { detail: createText || "Failed to create conversation." },
-            { status: createConversationResponse.status }
-          ),
-        };
+      if (error instanceof Anthropic.APIConnectionTimeoutError) {
+        return NextResponse.json({ detail: "Service timeout. Please try again." }, { status: 504 });
       }
-
-      let createdConversation: UpstreamConversationCreateResponse | null = null;
-      try {
-        createdConversation = (await createConversationResponse.json()) as UpstreamConversationCreateResponse;
-      } catch {
-        createdConversation = null;
-      }
-
-      if (!createdConversation?.id) {
-        return {
-          id: null,
-          errorResponse: NextResponse.json(
-            { detail: "Invalid conversation creation response." },
-            { status: 502 }
-          ),
-        };
-      }
-
-      return { id: createdConversation.id, errorResponse: null as NextResponse | null };
-    };
-
-    if (!conversationId) {
-      const created = await createConversation();
-      if (created.errorResponse) return created.errorResponse;
-      conversationId = created.id;
-    }
-    if (!conversationId) {
-      return NextResponse.json({ detail: "Conversation initialization failed." }, { status: 502 });
+      return NextResponse.json({ detail: "The assistant is unavailable. Please try again." }, { status: 502 });
     }
 
-    const sendMessage = async (cid: string) =>
-      fetchWithTimeout(`${backendBase}/api/v1/conversations/${encodeURIComponent(cid)}/messages`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: authHeader,
-        },
-        body: JSON.stringify({
-          content: prompt,
-          data_source: source,
-        }),
-        cache: "no-store",
-      });
-
-    let sendMessageResponse = await sendMessage(conversationId);
-    if (sendMessageResponse.status === 404) {
-      const recreated = await createConversation();
-      if (recreated.errorResponse) return recreated.errorResponse;
-      if (!recreated.id) {
-        return NextResponse.json({ detail: "Conversation recreation failed." }, { status: 502 });
-      }
-      conversationId = recreated.id;
-      sendMessageResponse = await sendMessage(conversationId);
+    if (!answer.content) {
+      return NextResponse.json({ detail: "The assistant returned an empty answer. Please try again." }, { status: 502 });
     }
-
-    const sendMessageText = await sendMessageResponse.text();
-    if (!sendMessageResponse.ok) {
-      try {
-        const parsedError = JSON.parse(sendMessageText);
-        return NextResponse.json(parsedError, { status: sendMessageResponse.status });
-      } catch {
-        return NextResponse.json(
-          { detail: sendMessageText || "Failed to get chat response." },
-          { status: sendMessageResponse.status }
-        );
-      }
-    }
-
-    let parsedMessage: UpstreamConversationMessageResponse | null = null;
-    try {
-      parsedMessage = JSON.parse(sendMessageText) as UpstreamConversationMessageResponse;
-    } catch {
-      parsedMessage = null;
-    }
-
-    const assistant = parsedMessage?.assistant_message;
-    const assistantContent = assistant?.content;
-    if (!assistantContent) {
-      return NextResponse.json({ detail: "Invalid conversation message response format." }, { status: 502 });
-    }
-
-    const syntheticId =
-      assistant?.id ||
-      (parsedMessage?.tracking_id ? `chatcmpl-${parsedMessage.tracking_id}` : `chatcmpl-${Date.now()}`);
 
     if (localSessionId) {
       try {
-        const existing = getConversationForUser(sessionUser.id, localSessionId);
-        let priorMessages = existing?.messages ?? [];
-        const last = priorMessages[priorMessages.length - 1];
-        // Client may have already persisted the user turn optimistically.
-        if (last?.role === "user" && last.content === prompt) {
-          priorMessages = priorMessages.slice(0, -1);
-        }
-        upsertConversationForUser({
+        await upsertConversationForUser({
           userId: sessionUser.id,
           sessionId: localSessionId,
-          upstreamConversationId: conversationId,
           messages: [
             ...priorMessages,
             { role: "user", content: prompt },
-            {
-              role: "assistant",
-              content: assistantContent,
-              sources: assistant?.sources ?? [],
-            },
+            { role: "assistant", content: answer.content, sources: answer.sources },
           ],
         });
       } catch {
@@ -308,35 +139,30 @@ export async function POST(request: NextRequest) {
     }
 
     const safeResponse = {
-      id: syntheticId,
+      id: `chatcmpl-${answer.id.replace(/^msg_/, "")}`,
       created: Math.floor(Date.now() / 1000),
       choices: [
         {
           index: 0,
           message: {
             role: "assistant",
-            content: assistantContent,
+            content: answer.content,
           },
-          finish_reason: "stop",
+          finish_reason: answer.refused ? "content_filter" : "stop",
         },
       ],
       usage: undefined,
-      sources: assistant?.sources ?? [],
+      sources: answer.sources,
       metadata: {
-        ...(assistant?.metadata && typeof assistant.metadata === "object" ? assistant.metadata : {}),
         data_source: source,
-        via: "conversations_api",
-        conversation_id: conversationId,
+        via: "claude_web_search",
         session_id: localSessionId,
       },
     };
 
     return NextResponse.json(safeResponse, { status: 200 });
   } catch (error: unknown) {
-    if (error instanceof Error && error.name === "AbortError") {
-      return NextResponse.json({ detail: "Service timeout. Please try again." }, { status: 504 });
-    }
-
+    console.error("Chat route failed:", error);
     return NextResponse.json(
       { detail: "Service request failed. Please try again." },
       { status: 500 }

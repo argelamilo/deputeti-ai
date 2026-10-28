@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ detail: "Authentication required." }, { status: 401 });
     }
 
-    const conversations = listConversationsForUser(user.id);
+    const conversations = await listConversationsForUser(user.id);
     return NextResponse.json({ conversations });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to list conversations.";

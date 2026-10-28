@@ -1,5 +1,6 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import { devError, devLog, devWarn } from '@/lib/utils/logger';
+import { translate } from '@/lib/i18n';
 // ALL TRANSLATION DISABLED - Backend handles everything
 // No language detection, no system messages, no translation from frontend
 
@@ -373,15 +374,15 @@ class ChatAPIClient {
     }
 
     const fallbackSteps: string[] = [];
-    fallbackSteps.push("Klasifikimi i pyetjes dhe percaktimi i kontekstit ligjor");
-    fallbackSteps.push("Kerkimi i fragmenteve relevante ne bazen e burimeve");
+    fallbackSteps.push(translate('stepClassify'));
+    fallbackSteps.push(translate('stepSearch'));
     if (sourcesCount > 0) {
-      fallbackSteps.push(`Vleresimi i ${sourcesCount} burimeve me relevante`);
+      fallbackSteps.push(translate('stepEvaluate', { count: sourcesCount }));
     }
     if (/retrieval:/i.test(content)) {
-      fallbackSteps.push("Pergjigjja u ndertua mbi fragmentet e rikuperuara (retrieval)");
+      fallbackSteps.push(translate('stepRetrieval'));
     }
-    fallbackSteps.push("Sinteza e pergjigjes duke respektuar kufizimet e evidences");
+    fallbackSteps.push(translate('stepSynthesis'));
     return fallbackSteps;
   }
 
@@ -404,7 +405,7 @@ class ChatAPIClient {
     // Create new conversation
     try {
       const response = await this.apiClient.post<Conversation>('/api/v1/conversations', {
-        title: 'Bisede e re',
+        title: translate('newChat'),
         profile: 'general',
       });
       devLog('[ChatAPI] Created new conversation:', response.id);
@@ -594,20 +595,20 @@ class ChatAPIClient {
       }
 
       // Build a production-safe user message (avoid leaking endpoint URLs/internal details)
-      let userErrorMessage = 'Ndodhi nje gabim gjate perpunimit te kerkeses. Ju lutem provoni perseri.';
+      let userErrorMessage = translate('errGeneric');
 
       if (errorCode === 'ERR_NETWORK' || errorMessage?.includes('Network Error')) {
-        userErrorMessage = 'U zbulua problem me rrjetin. Ju lutem kontrolloni lidhjen dhe provoni perseri.';
+        userErrorMessage = translate('errNetwork');
       } else if (errorCode === 'ECONNABORTED') {
-        userErrorMessage = 'Kerkesa po zgjat me shume se sa pritej. Ju lutem provoni perseri.';
+        userErrorMessage = translate('errTimeout');
       } else if (errorStatus === 401 || errorStatus === 403) {
-        userErrorMessage = 'Autentikimi deshtoi. Ju lutem hyni perseri.';
+        userErrorMessage = translate('errAuth');
       } else if (errorStatus === 429) {
-        userErrorMessage = 'Ka shume kerkesa per momentin. Ju lutem prisni pak dhe provoni perseri.';
+        userErrorMessage = translate('errRateLimit');
       } else if (typeof errorStatus === 'number' && errorStatus >= 500) {
-        userErrorMessage = 'Sherbimi eshte perkohesisht i padisponueshem. Ju lutem provoni pas pak.';
+        userErrorMessage = translate('errUnavailable');
       } else if (typeof errorStatus === 'number' && errorStatus >= 400) {
-        userErrorMessage = 'Kerkesa nuk mund te plotesohej. Ju lutem verifikoni inputin dhe provoni perseri.';
+        userErrorMessage = translate('errBadRequest');
       }
 
       // If we got a 500 error with RAG pipeline error, show it clearly

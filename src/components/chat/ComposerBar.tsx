@@ -10,6 +10,7 @@ import {
 import SendIcon from "@mui/icons-material/Send";
 import type { KeyboardEvent } from "react";
 import { useEffect, useRef } from "react";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface ComposerBarProps {
   loading: boolean;
@@ -21,6 +22,7 @@ interface ComposerBarProps {
 }
 
 export function ComposerBar({ loading, input, onInputChange, onSend, onKeyDown, focusInputSignal = 0 }: ComposerBarProps) {
+  const { t } = useLanguage();
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -54,7 +56,7 @@ export function ComposerBar({ loading, input, onInputChange, onSend, onKeyDown, 
           onChange={(e) => onInputChange(e.target.value)}
           onKeyDown={onKeyDown}
           disabled={loading}
-          placeholder="Shkruani pyetjen tuaj..."
+          placeholder={t("composerPlaceholder")}
           inputRef={inputRef}
           InputProps={{
             disableUnderline: true,

@@ -14,6 +14,7 @@ import Drawer from "@mui/material/Drawer";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAgentSession } from "@/hooks/useAgentSession";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Sidebar } from "@/components/navigation/Sidebar";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -32,13 +33,14 @@ function ChatPageContent() {
   const [input, setInput] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [expandedMessages, setExpandedMessages] = useState<Set<number>>(new Set());
-  const [selectedLawLabel, setSelectedLawLabel] = useState("Ligji i BE-se");
+  const [selectedLaw, setSelectedLaw] = useState<"eu_law" | "albanian">("eu_law");
   const [focusInputSignal, setFocusInputSignal] = useState(0);
   const [animatedAssistantMessageId, setAnimatedAssistantMessageId] = useState<number | null>(null);
   const hasInitializedFromHistoryRef = React.useRef(false);
   const previousMessageCountRef = React.useRef(0);
 
   const router = useRouter();
+  const { t } = useLanguage();
   const { user: authUser, logout } = useAuth();
 
   // Responsive breakpoints
@@ -87,13 +89,13 @@ function ChatPageContent() {
   }, [displayMessages]);
 
   useEffect(() => {
-    const mapLawToLabel = (value: string | null) => (value === "albanian" ? "Ligji Shqiptar" : "Ligji i BE-se");
+    const mapLaw = (value: string | null) => (value === "albanian" ? "albanian" : "eu_law");
     const storedLaw = typeof window !== "undefined" ? window.localStorage.getItem("selected_law") : null;
-    setSelectedLawLabel(mapLawToLabel(storedLaw));
+    setSelectedLaw(mapLaw(storedLaw));
 
     const onSelectedLawUpdated = (event: Event) => {
       const customEvent = event as CustomEvent<{ value?: string }>;
-      setSelectedLawLabel(mapLawToLabel(customEvent.detail?.value || null));
+      setSelectedLaw(mapLaw(customEvent.detail?.value || null));
     };
 
     window.addEventListener("selectedLawUpdated", onSelectedLawUpdated as EventListener);
@@ -284,7 +286,7 @@ function ChatPageContent() {
       <Box component="main" sx={{ flexGrow: 1, minHeight: "100vh", width: isMobile ? "100%" : "auto" }}>
         <DashboardLayout
           header={
-            <PageHeader breadcrumbItems={[{ label: "Asistenti Ligjor" }]} user={userForHeader} onLogout={handleLogout} />
+            <PageHeader breadcrumbItems={[{ label: t("legalAssistant") }]} user={userForHeader} onLogout={handleLogout} />
           }
         >
           {isMobile && (
@@ -325,7 +327,7 @@ function ChatPageContent() {
               {displayMessages.length === 0 && <TopToolbar />}
               <Box sx={{ width: "100%", maxWidth: 780, mx: "auto", display: "flex", flexDirection: "column", gap: 2 }}>
                 {displayMessages.length === 0 ? (
-                  <PromptSuggestionGrid onPromptClick={handleSuggestionClick} selectedLawLabel={selectedLawLabel} />
+                  <PromptSuggestionGrid onPromptClick={handleSuggestionClick} selectedLaw={selectedLaw} />
                 ) : (
                   <>
                     {displayMessages.map((msg) => {
@@ -352,7 +354,7 @@ function ChatPageContent() {
                     {loading && (
                       <Box sx={{ color: "hsl(var(--text-muted))", width: "100%", maxWidth: 780 }}>
                         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                          <Typography sx={{ fontSize: "0.9rem" }}>Po gjenerohet pergjigjja...</Typography>
+                          <Typography sx={{ fontSize: "0.9rem" }}>{t("generatingResponse")}</Typography>
                           <Box
                             component="span"
                             sx={{
@@ -368,7 +370,7 @@ function ChatPageContent() {
                           />
                         </Box>
                         <Typography sx={{ fontSize: "0.8rem", mt: 0.35 }}>
-                          Po merren burimet ligjore dhe hapat e arsyetimit...
+                          {t("gatheringSources")}
                         </Typography>
                       </Box>
                     )}
@@ -391,11 +393,11 @@ function ChatPageContent() {
                   }}
                 >
                   <Typography sx={{ fontSize: "0.82rem", color: "hsl(var(--text-muted))" }}>
-                    {error || "Last message failed."}
+                    {error || t("lastMessageFailed")}
                   </Typography>
                   {lastFailedUserMessage && (
                     <Button variant="text" size="small" onClick={handleRetryLast} disabled={loading}>
-                      Provo perseri
+                      {t("tryAgain")}
                     </Button>
                   )}
                 </Box>

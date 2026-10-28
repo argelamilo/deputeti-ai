@@ -11,6 +11,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChatSource } from "@/lib/api/client";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface MessageBubbleProps {
   id: number;
@@ -36,17 +37,18 @@ export function MessageBubble({
   fullContent,
   hasMore,
   isExpanded,
-  isAlbanian,
   refId,
   sources = [],
   reasoningSteps = [],
   animateTyping = false,
   onToggleExpand,
 }: MessageBubbleProps) {
+  const { t } = useLanguage();
   const [typedText, setTypedText] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [showReasoning, setShowReasoning] = useState(false);
   const [selectedSource, setSelectedSource] = useState<ChatSource | null>(null);
+  const isWebSource = selectedSource?.sourceType === "web" && Boolean(selectedSource.reference);
   const [sourceDetailLoading, setSourceDetailLoading] = useState(false);
   const [sourceDetailText, setSourceDetailText] = useState<string | null>(null);
   const [resolvedExplorerSource, setResolvedExplorerSource] = useState<"eu_law" | "albanian" | null>(null);
@@ -79,22 +81,22 @@ export function MessageBubble({
   const groupedReasoning = [
     {
       key: "sources",
-      title: "Burimet e perdorura",
+      title: t("sourcesUsed"),
       items: effectiveSources.slice(0, 8).map((source) => source),
     },
     {
       key: "filters",
-      title: "Filtrat qe po aplikohen",
+      title: t("filtersApplied"),
       items: reasoningSteps.filter((step) => /filter|scope|criteria|kriter|kusht/i.test(step)),
     },
     {
       key: "joins",
-      title: "Lidhjet e te dhenave",
+      title: t("dataLinks"),
       items: reasoningSteps.filter((step) => /join|match|map|relat|lidh/i.test(step)),
     },
     {
       key: "other",
-      title: "Hapa te tjere",
+      title: t("otherSteps"),
       items: reasoningSteps.filter(
         (step) => !/table|source|retriev|burim|dataset|dokument|filter|scope|criteria|kriter|kusht|join|match|map|relat|lidh/i.test(step)
       ),
@@ -138,6 +140,11 @@ export function MessageBubble({
     const loadSourceDetail = async () => {
       if (!selectedSource) return;
       setSourceDetailText(selectedSource.textPreview || null);
+      // Web sources (from the assistant's web search) have no library entry to look up.
+      if (selectedSource.sourceType === "web") {
+        setSourceDetailLoading(false);
+        return;
+      }
       setSourceDetailLoading(true);
       setResolvedExplorerSource(null);
       setResolvedExplorerDocId(selectedSource.documentId || null);
@@ -302,7 +309,7 @@ export function MessageBubble({
             startIcon={showReasoning ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
             sx={{ px: 0, color: "hsl(var(--text-muted))", "&:hover": { bgcolor: "transparent", color: "hsl(var(--text-primary))" } }}
           >
-            Hapat e arsyetimit
+            {t("reasoningSteps")}
           </Button>
           {showReasoning && (
             <Box sx={{ mt: 0.8, display: "grid", gap: 1.5 }}>
@@ -441,13 +448,7 @@ export function MessageBubble({
             "&:hover": { color: "hsl(var(--text-primary))", bgcolor: "transparent" },
           }}
         >
-          {isExpanded
-            ? isAlbanian
-              ? "Fshih Burimet & Detajet"
-              : "Fshih Burimet & Detajet"
-            : isAlbanian
-              ? "Shfaq Burimet & Detajet Ligjore"
-              : "Shfaq Burimet & Detajet Ligjore"}
+          {isExpanded ? t("hideSources") : t("showSources")}
         </Button>
       )}
 
@@ -490,6 +491,10 @@ export function MessageBubble({
               size="small"
               startIcon={<OpenInNewIcon sx={{ fontSize: 14 }} />}
               onClick={() => {
+                if (typeof window !== "undefined" && isWebSource) {
+                  window.open(selectedSource.reference, "_blank", "noopener,noreferrer");
+                  return;
+                }
                 if (typeof window !== "undefined") {
                   const q = selectedSource.reference || selectedSource.label;
                   const sourceParam =
@@ -510,14 +515,19 @@ export function MessageBubble({
               }}
               sx={{ alignSelf: "flex-start", mb: 1.1, textTransform: "none" }}
             >
-              Hap ne Explorer
+              {isWebSource ? t("openSource") : t("openInExplorer")}
             </Button>
+            {isWebSource && (
+              <Typography sx={{ mb: 1.1, fontSize: "0.78rem", color: "hsl(var(--text-muted))", wordBreak: "break-all" }}>
+                {selectedSource.reference}
+              </Typography>
+            )}
             {sourceDetailLoading ? (
               <Box sx={{ mt: 0.1 }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.2 }}>
                   <CircularProgress size={16} />
                   <Typography sx={{ fontSize: "0.9rem", color: "hsl(var(--text-muted))" }}>
-                    Po ngarkohet permbajtja...
+                    {t("loadingContent")}
                   </Typography>
                 </Box>
                 <Skeleton variant="rounded" height={18} sx={{ mb: 0.6 }} />
@@ -526,7 +536,7 @@ export function MessageBubble({
               </Box>
             ) : (
               <Typography sx={{ fontSize: "0.98rem", color: "hsl(var(--text-primary))", lineHeight: 1.7 }}>
-                {sourceDetailText || "Nuk ka permbajtje te detajuar per kete burim."}
+                {sourceDetailText || t("noSourceDetail")}
               </Typography>
             )}
             {typeof selectedSource.score === "number" && (

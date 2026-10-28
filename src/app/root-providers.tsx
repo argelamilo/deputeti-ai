@@ -14,6 +14,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { CssBaseline, ThemeProvider, createTheme } from "@mui/material";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { LanguageProvider } from "@/contexts/LanguageContext";
 
 const appTheme = createTheme({
   typography: {
@@ -132,7 +133,9 @@ export function RootProviders({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider theme={appTheme}>
         <CssBaseline />
-        <AuthProvider>{mounted ? children : null}</AuthProvider>
+        <LanguageProvider>
+          <AuthProvider>{mounted ? children : null}</AuthProvider>
+        </LanguageProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

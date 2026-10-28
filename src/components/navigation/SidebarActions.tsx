@@ -17,6 +17,7 @@ import DeleteOutline from "@mui/icons-material/DeleteOutline";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useConversationSessions } from "@/hooks/useConversationSessions";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { SidebarSectionHeader } from "./SidebarSectionHeader";
 
 interface SidebarActionsProps {
@@ -25,6 +26,7 @@ interface SidebarActionsProps {
 
 export function SidebarActions({ actions }: SidebarActionsProps) {
   const router = useRouter();
+  const { t } = useLanguage();
   const { sessions, deleteSession } = useConversationSessions();
   const [openSections, setOpenSections] = useState({
     projects: true,
@@ -140,7 +142,7 @@ export function SidebarActions({ actions }: SidebarActionsProps) {
           }}
         >
           <AddIcon sx={{ fontSize: 18 }} />
-          Bej nje pyetje te re
+          {t("startNewChat")}
         </Box>
       </Box>
 
@@ -318,7 +320,7 @@ export function SidebarActions({ actions }: SidebarActionsProps) {
           }}
           sx={{ display: "flex", alignItems: "center", width: "100%", cursor: "pointer", py: 0.25 }}
         >
-          <SidebarSectionHeader title="Historiku" />
+          <SidebarSectionHeader title={t("history")} />
           <KeyboardArrowDownIcon
             sx={{
               ml: "auto",
@@ -366,7 +368,7 @@ export function SidebarActions({ actions }: SidebarActionsProps) {
                     }}
                   >
                     <ListItemText
-                      primary={session.preview || "Bisede e re"}
+                      primary={!session.preview || session.preview === "Bisede e re" || session.preview === "New chat" ? t("newChat") : session.preview}
                       slotProps={{
                         primary: {
                           sx: {
@@ -395,8 +397,8 @@ export function SidebarActions({ actions }: SidebarActionsProps) {
                       color: "hsl(var(--text-muted))",
                       "&:hover": { color: "hsl(var(--text-primary))" },
                     }}
-                    title="Fshi biseden"
-                    aria-label={`Fshi biseden`}
+                    title={t("deleteChat")}
+                    aria-label={t("deleteChat")}
                     role="button"
                   >
                     <DeleteOutline sx={{ fontSize: 18 }} />
@@ -408,7 +410,7 @@ export function SidebarActions({ actions }: SidebarActionsProps) {
         ) : openSections.history ? (
           <Box sx={{ color: "hsl(var(--text-muted))", px: 1.4 }}>
             <Typography sx={{ fontSize: "0.82rem" }}>
-              Ende nuk ka biseda
+              {t("noChatsYet")}
             </Typography>
           </Box>
         ) : null}
