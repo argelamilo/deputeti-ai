@@ -1,0 +1,42 @@
+[
+  {
+    "file": "CELEX_32011L0007_EN_TXT.pdf",
+    "jurisdiction": "eu",
+    "title": "Directive 2011/7/EU on combating late payment in commercial transactions",
+    "ref": "32011L0007",
+    "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32011L0007",
+    "language": "en"
+  },
+  {
+    "file": "CELEX_32019L1152_EN_TXT.pdf",
+    "jurisdiction": "eu",
+    "title": "Directive (EU) 2019/1152 on transparent and predictable working conditions",
+    "ref": "32019L1152",
+    "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32019L1152",
+    "language": "en"
+  },
+  {
+    "file": "Kodi-i-punes-perditesuar-2024.pdf",
+    "jurisdiction": "al",
+    "title": "Kodi i Punes i Republikes se Shqiperise (Ligji nr. 7961/1995)",
+    "ref": "AL-7961-1995",
+    "url": "https://inspektoriatipunes.gov.al/wp-content/uploads/2024/08/Kodi-i-punes-perditesuar-2024.pdf",
+    "language": "sq"
+  },
+  {
+    "file": "ligj-9920-19052008-perditesuar-varianti-17-per-proceduarat-tatimore-ne-Republiken-e-Shqiperise.pdf",
+    "jurisdiction": "al",
+    "title": "Ligji nr. 9920/2008 Per procedurat tatimore ne Republiken e Shqiperise",
+    "ref": "AL-9920-2008",
+    "url": "https://qeverisjavendore.gov.al/wp-content/uploads/2025/04/ligj-9920-19052008-perditesuar-varianti-17-per-proceduarat-tatimore-ne-Republiken-e-Shqiperise.pdf",
+    "language": "sq"
+  },
+  {
+    "file": "al-tvsh-92-2014.pdf",
+    "jurisdiction": "al",
+    "title": "Ligji nr. 92/2014 Per tatimin mbi vleren e shtuar ne Republiken e Shqiperise",
+    "ref": "AL-92-2014",
+    "url": "https://alpex.al/wp-content/uploads/2023/10/Ligj-Nr-92-2014-date-24.7.2014-Per-tatimin-mbi-vleren-e-shtuar-ne-Republiken-e-Shqiperise-i-ndryshuar.pdf",
+    "language": "sq"
+  }
+]

@@ -269,6 +269,88 @@ interface Conversation {
   scope: string;
 }
 
+export interface ChatStreamHandlers {
+  onDelta?: (text: string) => void;
+  onReset?: () => void;
+}
+
+// Error shaped like an AxiosError so sendMessage's error handling covers both transports.
+function chatTransportError(code: string | undefined, status?: number, data?: unknown): Error {
+  return Object.assign(new Error(code || 'Chat request failed'), {
+    code,
+    response: status ? { status, data } : undefined,
+  });
+}
+
+// Posts to /api/chat and reads the newline-delimited JSON stream; resolves with the final completion.
+async function postChatStream(
+  body: Record<string, unknown>,
+  handlers?: ChatStreamHandlers
+): Promise<ChatCompletionResponse> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 120000);
+
+  try {
+    let res: Response;
+    try {
+      res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } catch (error) {
+      throw chatTransportError((error as Error)?.name === 'AbortError' ? 'ECONNABORTED' : 'ERR_NETWORK');
+    }
+
+    if (!res.ok || !res.body) {
+      const data = await res.json().catch(() => undefined);
+      throw chatTransportError(undefined, res.status || 500, data);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let result: ChatCompletionResponse | null = null;
+
+    const handleLine = (line: string) => {
+      if (!line.trim()) return;
+      const event = JSON.parse(line) as
+        | { type: 'delta'; text: string }
+        | { type: 'reset' }
+        | { type: 'done'; data: ChatCompletionResponse }
+        | { type: 'error'; status?: number; detail?: string };
+      if (event.type === 'delta') handlers?.onDelta?.(event.text);
+      else if (event.type === 'reset') handlers?.onReset?.();
+      else if (event.type === 'done') result = event.data;
+      else if (event.type === 'error') {
+        throw chatTransportError(undefined, event.status || 502, { detail: event.detail });
+      }
+    };
+
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? '';
+        lines.forEach(handleLine);
+      }
+      handleLine(buffer);
+    } catch (error) {
+      if ((error as Error)?.name === 'AbortError') throw chatTransportError('ECONNABORTED');
+      throw error;
+    }
+
+    if (!result) throw chatTransportError('ERR_NETWORK');
+    return result;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 class ChatAPIClient {
   private apiClient: APIClient;
 
@@ -420,7 +502,8 @@ class ChatAPIClient {
   async sendMessage(
     userMessage: string,
     sessionId: string = "default",
-    conversationHistory: ChatMessage[] = []
+    conversationHistory: ChatMessage[] = [],
+    onStream?: ChatStreamHandlers
   ): Promise<ChatResponse> {
     try {
       // Send ONLY the user message to the backend
@@ -441,10 +524,12 @@ class ChatAPIClient {
         source: "eu_law" | "albanian";
         conversation_id?: string;
         session_id: string;
+        stream: boolean;
       } = {
         prompt: userMessage,
         source,
         session_id: sessionId,
+        stream: true,
       };
       if (existingConversationId) {
         requestBody.conversation_id = existingConversationId;
@@ -461,14 +546,7 @@ class ChatAPIClient {
         source,
       });
 
-      const proxyResponse = await axios.post<ChatCompletionResponse>('/api/chat', requestBody, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        withCredentials: true,
-        timeout: 120000,
-      });
-      const response = proxyResponse.data;
+      const response = await postChatStream(requestBody, onStream);
       const responseMetadata = response.metadata && typeof response.metadata === "object"
         ? (response.metadata as Record<string, unknown>)
         : null;

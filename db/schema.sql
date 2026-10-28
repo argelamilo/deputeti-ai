@@ -58,3 +58,24 @@ ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE conversation_messages ENABLE ROW LEVEL SECURITY;
+
+-- Local law database used for retrieval (RAG). Loaded with: npm run laws:ingest
+-- search_text is a lowercased, accent-stripped copy of the passage (built at ingest time),
+-- so searches work whether or not the user types Albanian letters like ë and ç.
+CREATE TABLE IF NOT EXISTS law_chunks (
+  id BIGSERIAL PRIMARY KEY,
+  jurisdiction TEXT NOT NULL CHECK (jurisdiction IN ('eu', 'al')),
+  act_title TEXT NOT NULL,
+  act_ref TEXT NOT NULL,
+  article TEXT,
+  language TEXT NOT NULL DEFAULT 'en',
+  url TEXT,
+  content TEXT NOT NULL,
+  search_text TEXT NOT NULL,
+  tsv tsvector GENERATED ALWAYS AS (to_tsvector('simple', search_text)) STORED
+);
+
+CREATE INDEX IF NOT EXISTS idx_law_chunks_tsv ON law_chunks USING GIN (tsv);
+CREATE INDEX IF NOT EXISTS idx_law_chunks_ref ON law_chunks(act_ref);
+
+ALTER TABLE law_chunks ENABLE ROW LEVEL SECURITY;

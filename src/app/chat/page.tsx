@@ -37,6 +37,8 @@ function ChatPageContent() {
   const [animatedAssistantMessageId, setAnimatedAssistantMessageId] = useState<number | null>(null);
   const hasInitializedFromHistoryRef = React.useRef(false);
   const previousMessageCountRef = React.useRef(0);
+  // True once an answer was streamed live, so its final message is not re-typed.
+  const streamedAnswerRef = React.useRef(false);
 
   const router = useRouter();
   const { t } = useLanguage();
@@ -56,6 +58,7 @@ function ChatPageContent() {
   const {
     messages: agentMessages,
     loading,
+    streamingText,
     error,
     lastFailedUserMessage,
     sendMessage,
@@ -95,6 +98,14 @@ function ChatPageContent() {
   }, [sessionId]);
 
   useEffect(() => {
+    if (streamingText) streamedAnswerRef.current = true;
+  }, [streamingText]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [streamingText]);
+
+  useEffect(() => {
     const currentCount = displayMessages.length;
 
     // Wait for initial history population for existing sessions.
@@ -109,7 +120,11 @@ function ChatPageContent() {
     if (currentCount > previousMessageCountRef.current) {
       const lastMessage = displayMessages[currentCount - 1];
       if (lastMessage && !lastMessage.fromUser) {
-        setAnimatedAssistantMessageId(lastMessage.id);
+        if (streamedAnswerRef.current) {
+          streamedAnswerRef.current = false;
+        } else {
+          setAnimatedAssistantMessageId(lastMessage.id);
+        }
       }
     }
 
@@ -336,7 +351,24 @@ function ChatPageContent() {
                       />
                     );
                   })}
-                    {loading && (
+                    {loading && streamingText && (
+                      <MessageBubble
+                        id={-1}
+                        text={streamingText}
+                        isUserMessage={false}
+                        visiblePart={streamingText}
+                        fullContent={streamingText}
+                        hasMore={false}
+                        isExpanded={false}
+                        isAlbanian={false}
+                        refId={null}
+                        sources={[]}
+                        reasoningSteps={[]}
+                        animateTyping={false}
+                        onToggleExpand={toggleExpandedMessage}
+                      />
+                    )}
+                    {loading && !streamingText && (
                       <Box sx={{ color: "hsl(var(--text-muted))", width: "100%", maxWidth: 780 }}>
                         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                           <Typography sx={{ fontSize: "0.9rem" }}>{t("generatingResponse")}</Typography>

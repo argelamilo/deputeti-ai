@@ -15,6 +15,8 @@ export interface AgentMessage {
 export function useAgentSession(sessionId: string | null = null) {
   const [messages, setMessages] = useState<AgentMessage[]>([]);
   const [loading, setLoading] = useState(false);
+  // Answer text received so far while the assistant is still responding.
+  const [streamingText, setStreamingText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [lastFailedUserMessage, setLastFailedUserMessage] = useState<string | null>(null);
 
@@ -60,6 +62,7 @@ export function useAgentSession(sessionId: string | null = null) {
 
       setLoading(true);
       setError(null);
+      setStreamingText("");
 
       try {
         const userMsg: AgentMessage = {
@@ -93,7 +96,10 @@ export function useAgentSession(sessionId: string | null = null) {
           );
         });
 
-        const response = await chatClient.sendMessage(userMessage, activeSessionId, cleanHistory);
+        const response = await chatClient.sendMessage(userMessage, activeSessionId, cleanHistory, {
+          onDelta: (text) => setStreamingText((prev) => prev + text),
+          onReset: () => setStreamingText(""),
+        });
 
         if (response && response.success && response.response) {
           setLastFailedUserMessage(null);
@@ -182,6 +188,7 @@ export function useAgentSession(sessionId: string | null = null) {
         setError(errorMessage);
         return null;
       } finally {
+        setStreamingText("");
         setLoading(false);
       }
     },
@@ -214,6 +221,7 @@ export function useAgentSession(sessionId: string | null = null) {
   return {
     messages,
     loading,
+    streamingText,
     error,
     lastFailedUserMessage,
     sendMessage,

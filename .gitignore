@@ -48,3 +48,8 @@ next-env.d.ts
 
 # har files
 *.har
+
+# law source files used by `npm run laws:ingest` (not uploaded; manifest and README are)
+/data/laws/*.pdf
+/data/laws/*.html
+/data/laws/*.htm

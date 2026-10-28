@@ -21,6 +21,7 @@ type ChatProxyRequest = {
   source?: string;
   conversation_id?: string;
   session_id?: string;
+  stream?: boolean;
 };
 
 function getClientIp(request: NextRequest): string {
@@ -104,63 +105,112 @@ export async function POST(request: NextRequest) {
       priorMessages = priorMessages.slice(0, -1);
     }
 
+    const wantsStream = body.stream === true;
+
+    const finalize = async (answer: LegalAnswer) => {
+      if (localSessionId) {
+        try {
+          await upsertConversationForUser({
+            userId: sessionUser.id,
+            sessionId: localSessionId,
+            messages: [
+              ...priorMessages,
+              { role: "user", content: prompt },
+              { role: "assistant", content: answer.content, sources: answer.sources },
+            ],
+          });
+        } catch {
+          // Chat response still succeeds even if local persistence fails.
+        }
+      }
+
+      return {
+        id: `chatcmpl-${answer.id.replace(/^msg_/, "")}`,
+        created: Math.floor(Date.now() / 1000),
+        choices: [
+          {
+            index: 0,
+            message: {
+              role: "assistant",
+              content: answer.content,
+            },
+            finish_reason: answer.refused ? "content_filter" : "stop",
+          },
+        ],
+        usage: undefined,
+        sources: answer.sources,
+        metadata: {
+          data_source: source,
+          via: "claude_web_search",
+          session_id: localSessionId,
+        },
+      };
+    };
+
+    const describeError = (error: unknown): { status: number; detail: string } => {
+      console.error("Chat request to Claude failed:", error);
+      if (error instanceof Anthropic.RateLimitError) {
+        return { status: 429, detail: "The assistant is busy. Please try again shortly." };
+      }
+      if (error instanceof Anthropic.APIConnectionTimeoutError) {
+        return { status: 504, detail: "Service timeout. Please try again." };
+      }
+      return { status: 502, detail: "The assistant is unavailable. Please try again." };
+    };
+
+    const emptyAnswerError = { status: 502, detail: "The assistant returned an empty answer. Please try again." };
+
+    if (wantsStream) {
+      // Newline-delimited JSON events: delta / reset / done / error.
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          const send = (event: Record<string, unknown>) => {
+            controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+          };
+          try {
+            const answer = await answerLegalQuestion(
+              { prompt, history: priorMessages, focus: source },
+              {
+                onDelta: (text) => send({ type: "delta", text }),
+                onReset: () => send({ type: "reset" }),
+              }
+            );
+            if (!answer.content) {
+              send({ type: "error", ...emptyAnswerError });
+            } else {
+              send({ type: "done", data: await finalize(answer) });
+            }
+          } catch (error) {
+            send({ type: "error", ...describeError(error) });
+          } finally {
+            controller.close();
+          }
+        },
+      });
+
+      return new Response(stream, {
+        status: 200,
+        headers: {
+          "Content-Type": "application/x-ndjson; charset=utf-8",
+          "Cache-Control": "no-cache, no-transform",
+        },
+      });
+    }
+
     let answer: LegalAnswer;
     try {
       answer = await answerLegalQuestion({ prompt, history: priorMessages, focus: source });
     } catch (error) {
-      console.error("Chat request to Claude failed:", error);
-      if (error instanceof Anthropic.RateLimitError) {
-        return NextResponse.json({ detail: "The assistant is busy. Please try again shortly." }, { status: 429 });
-      }
-      if (error instanceof Anthropic.APIConnectionTimeoutError) {
-        return NextResponse.json({ detail: "Service timeout. Please try again." }, { status: 504 });
-      }
-      return NextResponse.json({ detail: "The assistant is unavailable. Please try again." }, { status: 502 });
+      const { status, detail } = describeError(error);
+      return NextResponse.json({ detail }, { status });
     }
 
     if (!answer.content) {
-      return NextResponse.json({ detail: "The assistant returned an empty answer. Please try again." }, { status: 502 });
+      return NextResponse.json({ detail: emptyAnswerError.detail }, { status: emptyAnswerError.status });
     }
 
-    if (localSessionId) {
-      try {
-        await upsertConversationForUser({
-          userId: sessionUser.id,
-          sessionId: localSessionId,
-          messages: [
-            ...priorMessages,
-            { role: "user", content: prompt },
-            { role: "assistant", content: answer.content, sources: answer.sources },
-          ],
-        });
-      } catch {
-        // Chat response still succeeds even if local persistence fails.
-      }
-    }
-
-    const safeResponse = {
-      id: `chatcmpl-${answer.id.replace(/^msg_/, "")}`,
-      created: Math.floor(Date.now() / 1000),
-      choices: [
-        {
-          index: 0,
-          message: {
-            role: "assistant",
-            content: answer.content,
-          },
-          finish_reason: answer.refused ? "content_filter" : "stop",
-        },
-      ],
-      usage: undefined,
-      sources: answer.sources,
-      metadata: {
-        data_source: source,
-        via: "claude_web_search",
-        session_id: localSessionId,
-      },
-    };
-
-    return NextResponse.json(safeResponse, { status: 200 });
+    return NextResponse.json(await finalize(answer), { status: 200 });
   } catch (error: unknown) {
     console.error("Chat route failed:", error);
     return NextResponse.json(
