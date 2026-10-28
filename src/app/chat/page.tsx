@@ -33,7 +33,6 @@ function ChatPageContent() {
   const [input, setInput] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [expandedMessages, setExpandedMessages] = useState<Set<number>>(new Set());
-  const [selectedLaw, setSelectedLaw] = useState<"eu_law" | "albanian">("eu_law");
   const [focusInputSignal, setFocusInputSignal] = useState(0);
   const [animatedAssistantMessageId, setAnimatedAssistantMessageId] = useState<number | null>(null);
   const hasInitializedFromHistoryRef = React.useRef(false);
@@ -87,20 +86,6 @@ function ChatPageContent() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [displayMessages]);
-
-  useEffect(() => {
-    const mapLaw = (value: string | null) => (value === "albanian" ? "albanian" : "eu_law");
-    const storedLaw = typeof window !== "undefined" ? window.localStorage.getItem("selected_law") : null;
-    setSelectedLaw(mapLaw(storedLaw));
-
-    const onSelectedLawUpdated = (event: Event) => {
-      const customEvent = event as CustomEvent<{ value?: string }>;
-      setSelectedLaw(mapLaw(customEvent.detail?.value || null));
-    };
-
-    window.addEventListener("selectedLawUpdated", onSelectedLawUpdated as EventListener);
-    return () => window.removeEventListener("selectedLawUpdated", onSelectedLawUpdated as EventListener);
-  }, []);
 
   useEffect(() => {
     // Existing sessions hydrate from localStorage; do not animate those old assistant messages.
@@ -327,7 +312,7 @@ function ChatPageContent() {
               {displayMessages.length === 0 && <TopToolbar />}
               <Box sx={{ width: "100%", maxWidth: 780, mx: "auto", display: "flex", flexDirection: "column", gap: 2 }}>
                 {displayMessages.length === 0 ? (
-                  <PromptSuggestionGrid onPromptClick={handleSuggestionClick} selectedLaw={selectedLaw} />
+                  <PromptSuggestionGrid onPromptClick={handleSuggestionClick} />
                 ) : (
                   <>
                     {displayMessages.map((msg) => {

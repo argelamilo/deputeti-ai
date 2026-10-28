@@ -432,8 +432,8 @@ class ChatAPIClient {
 
       // Send an abstracted payload to the local proxy. The proxy builds the
       // backend OpenAI-compatible shape server-side.
-      const selectedLaw = typeof window !== 'undefined' ? localStorage.getItem('selected_law') : null;
-      const source: "eu_law" | "albanian" = selectedLaw === 'albanian' ? 'albanian' : 'eu_law';
+      // The assistant always compares EU and Albanian law; the law selector was removed.
+      const source: "eu_law" | "albanian" = 'eu_law';
       const existingConversationId = await this.getUpstreamConversationId(sessionId);
 
       const requestBody: {
@@ -503,7 +503,6 @@ class ChatAPIClient {
         status: 'success',
         rawId,
         refId,
-        selectedLaw,
         requestSource: source,
         responseSourceSummary,
         fullResponse: response,
