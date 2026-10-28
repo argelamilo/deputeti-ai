@@ -1,6 +1,7 @@
 "use client";
 
 import { Breadcrumb } from "@/components/navigation/Breadcrumb";
+import { UserMenu } from "@/components/navigation/UserMenu";
 import CheckIcon from "@mui/icons-material/Check";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import Box from "@mui/material/Box";
@@ -38,6 +39,8 @@ const LAW_STORAGE_KEY = "selected_law";
 
 export function PageHeader({
   breadcrumbItems,
+  user,
+  onLogout,
 }: PageHeaderProps) {
   const { lang, setLang, t } = useLanguage();
   const [selectedLaw, setSelectedLaw] = useState<(typeof LAW_OPTIONS)[number]["id"]>("eu_law");
@@ -150,6 +153,7 @@ export function PageHeader({
           ))}
         </Menu>
         </Box>
+        <UserMenu user={user} onLogout={onLogout} />
       </Box>
     </Box>
   );
