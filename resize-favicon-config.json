@@ -1,0 +1,23 @@
+{
+  "width": 900,
+  "height": 480,
+  "sourceFile": "albania_favicon.png",
+  "outputFile": "albania_favicon.png",
+  "updateLocations": [
+    "src/app/icon.png",
+    "public/albania_favicon.png"
+  ],
+  "notes": {
+    "description": "Edit the width and height values above to resize your favicon",
+    "recommendedSizes": {
+      "square": "32x32, 64x64, 128x128, 256x256",
+      "wide": "768x480, 800x500, 1024x640",
+      "standard": "16x16, 32x32, 48x48"
+    },
+    "usage": {
+      "powershell": ".\resize-favicon.ps1 -Width 800 -Height 500",
+      "nodejs": "node resize-favicon.js 800 500",
+      "config": "Edit this JSON file and run the script"
+    }
+  }
+}
