@@ -61,7 +61,7 @@ After 2-3 minutes, you'll get a URL like:
 
 ## 🔑 Login Credentials
 
-**API Key**: `sk-KnCx-6j3M7uukpWXw8G32Vq110tqtu0xrowrxEHhP_4`
+**API Key**: `<your-api-key>`
 
 Users can:
 1. Visit your deployed URL
@@ -111,7 +111,7 @@ The Deputeti AI frontend is ready for testing!
 URL: [YOUR_VERCEL_URL]
 
 To login:
-- Enter API key: sk-KnCx-6j3M7uukpWXw8G32Vq110tqtu0xrowrxEHhP_4
+- Enter API key: <your-api-key>
 
 Features:
 - Simple chat interface

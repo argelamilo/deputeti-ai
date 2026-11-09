@@ -135,7 +135,7 @@ After deployment finishes:
 
 1. Open the URL in your browser
 2. You should see the login page
-3. Enter API key: `sk-KnCx-6j3M7uukpWXw8G32Vq110tqtu0xrowrxEHhP_4`
+3. Enter API key: `<your-api-key>`
 4. Click "Sign in"
 5. You should see the chat interface!
 
@@ -147,7 +147,7 @@ After deployment finishes:
 
 Send them:
 - **URL**: Your Vercel URL (like `https://deputeti-ai-abc123.vercel.app`)
-- **API Key**: `sk-KnCx-6j3M7uukpWXw8G32Vq110tqtu0xrowrxEHhP_4`
+- **API Key**: `<your-api-key>`
 
 They can:
 1. Open the URL in any browser

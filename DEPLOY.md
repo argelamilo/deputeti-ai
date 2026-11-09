@@ -108,7 +108,7 @@ Once deployed, you'll get a public URL like:
 
 Just send them the URL! They can:
 1. Visit the link
-2. Enter API key: `sk-KnCx-6j3M7uukpWXw8G32Vq110tqtu0xrowrxEHhP_4`
+2. Enter API key: `<your-api-key>`
 3. Start chatting
 
 ## Troubleshooting
